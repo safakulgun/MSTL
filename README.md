@@ -69,7 +69,84 @@ from statsforecast.utils import AirPassengers as ap
 
 df = pd.read_csv('PJM_Load_hourly.csv')
 
-df.head```
+df.head
+ ```
+<img width="573" alt="Screen Shot 2023-11-04 at 17 05 17" src="https://github.com/safakulgun/MSTL/assets/108941899/eb6a34f7-8f43-43bc-9764-911a4b8e5ce5">
+
+```python
+df.types
+```
+Datetime        object
+
+PJM_Load_MW    float64
+
+```python
+df.isnull().sum()
+```
+unique_id    0
+
+Datehours    0
+
+Load         0
+
+dtype: int64
+
+```python
+df.columns = ['Datehours', 'Load']
+df.insert(0, 'unique_id', 'PJM_Load_hourly')
+df['Datehours'] = pd.to_datetime(df['Datehours'])
+df = df.sort_values(['unique_id', 'Datehours']).reset_index(drop=True)
+
+df.tail()
+```
+<img width="469" alt="Screen Shot 2023-11-04 at 18 27 22" src="https://github.com/safakulgun/MSTL/assets/108941899/c92f4af0-13c5-4ffd-bedc-23ed018c47ef">
+
+```python
+df.plot(x='Datehours', y='Load')
+```
+![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/950efc14-aa2b-4be6-b697-116fbfe69eaa)
+
+Zaman serisinin mevsimsel davranış sergideğini görüyoruz. Burada 32.896 gözlem olduğundan üretimde görüntülemek adına hesaplama bakımından verimli yöntemler kullanmak gereklidir.
+
+# MSTL MODEL
+
+Elektrik yükü 24 saatte bir (Saatlik) ve 24*7 (Günlük) saatte bir mevsimsellik göstermektedir. [24, 24 * 7]Dolayısıyla MSTL modelinin aldığı mevsimsellikleri kullanacağız . Aynı zamanda trendin nasıl tahmin edileceğini de belirtmeliyiz. Bu durumda  AutoARIMA modelini kullanacağız.
+
+```python
+#StatsForecast nesnesinin giriş veri çerçevesinde
+# "unique_id", "ds" ve "y" sütunlarını bekler.
+df.columns = ['ds', 'y']
+df.insert(0, 'unique_id', 'PJM_Load_hourly')
+df['ds'] = pd.to_datetime(df['ds'])
+df = df.sort_values(['unique_id', 'ds']).reset_index(drop=True)
+mstl = MSTL(
+    season_length=[24, 24 * 7],
+    trend_forecaster=AutoARIMA()
+)
+sf = StatsForecast(
+    models=[mstl],
+    freq='H',
+)
+sf = sf.fit(df=df)
+
+```
+* Zaman serilerini birden fazla mevsimselliğe göre ayrıştırma
+
+```python
+sf.fitted_[0, 0].model_
+```
+<img width="532" alt="Screen Shot 2023-11-04 at 20 08 12" src="https://github.com/safakulgun/MSTL/assets/108941899/e728a69b-c0a2-456d-b809-c45957a45fb3">
+
+Bileşenlerine grafiksel olarak bakalım.
+
+```python
+sf.fitted_[0, 0].model_.tail(24 * 28).plot(subplots=True, grid=True)
+plt.tight_layout()
+plt.show()
+```
+![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/36d45822-fe36-4057-957a-6e38a56c5acf)
+
+Burada trend çizgisinin yukarı yönde artan olduğunu görmekteyiz. Dolayısıyla AutoARIMA modelini kullanabiliriz ayrıca  iki bileşen  SeasonalNaiveBu modeli kullanılarak ayrı ayrı tahmin edilecektir.
 
 
 
