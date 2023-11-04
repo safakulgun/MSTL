@@ -47,3 +47,30 @@ MSTL Özellikleri
 7. Verimli Uygulama: MSTL modeli, uygun algoritmalar kullanıldığında verimli bir şekilde hesaplanabilir ve birçok farklı uygulama için kullanılabilir.
 
 Bu özellikler, MSTL modelini karmaşık zaman serileriyle çalışırken keşif amaçlı analiz, tahmin ve modelleme için etkili bir araç haline getirir.
+
+# UYGULAMA
+
+* Veri Seti Hikayesi
+  
+  PJM Interconnection LLC (PJM), Amerika Birleşik Devletleri'nde bölgesel bir iletim organizasyonudur (RTO). Delaware, Illinois, Indiana, Kentucky, Maryland, Michigan, New Jersey, North Carolina, Ohio, Pennsylvania, Tennessee, Virginia, West Virginia ve District of Columbia'nın tamamına veya bir kısmına hizmet veren bir elektrik iletim sistemi işleten Eastern Interconnection şebekesinin bir parçasıdır. Saatlik güç tüketimi verileri PJM'nin web sitesinden alınmıştır ve megawatt (MW) cinsindendir.
+
+```python
+import matplotlib.pyplot as plt
+
+import numpy as np
+
+import pandas as pd
+
+from statsforecast import StatsForecast
+
+from statsforecast.models import MSTL, AutoARIMA, SeasonalNaive
+
+from statsforecast.utils import AirPassengers as ap
+
+df = pd.read_csv('PJM_Load_hourly.csv')
+
+df.head```
+
+
+
+
