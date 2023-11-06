@@ -147,7 +147,38 @@ plt.show()
 ![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/36d45822-fe36-4057-957a-6e38a56c5acf)
 
 Burada trend çizgisinin yukarı yönde artan olduğunu görmekteyiz. Dolayısıyla AutoARIMA modelini kullanabiliriz ayrıca  iki bileşen  SeasonalNaiveBu modeli kullanılarak ayrı ayrı tahmin edilecektir.
+* TAHMİN
+
+  %90 tahmin aralığını hesaplayacağız
+  
+ ```python
+forecasts = sf.predict(h=24)
+forecasts['MSTL-lo-90'] = forecasts['MSTL'] - (1.645 * forecasts['MSTL'].std())
+forecasts['MSTL-hi-90'] = forecasts['MSTL'] + (1.645 * forecasts['MSTL'].std())
+print(forecasts[['ds', 'MSTL', 'MSTL-lo-90', 'MSTL-hi-90',]].head())
+```
+
+<img width="684" alt="Screen Shot 2023-11-06 at 22 46 34" src="https://github.com/safakulgun/MSTL/assets/108941899/88d60728-2b8c-4545-82da-5d7dbd2fa4d9">
 
 
+ ```python
+_, ax = plt.subplots(1, 1, figsize = (20, 7))
+df_plot = pd.concat([df, forecasts]).set_index('ds').tail(24 * 7)
+df_plot[['y', 'MSTL']].plot(ax=ax, linewidth=2)
+ax.fill_between(df_plot.index,
+                df_plot['MSTL-lo-90'],
+                df_plot['MSTL-hi-90'],
+                alpha=.35,
+                color='orange',
+                label='MSTL-level-90')
+ax.set_title('PJM Load Hourly', fontsize=22)
+ax.set_ylabel('Electricity Load', fontsize=20)
+ax.set_xlabel('Timestamp [t]', fontsize=20)
+ax.legend(prop={'size': 15})
+ax.grid()
+```
+![predict](https://github.com/safakulgun/MSTL/assets/108941899/2eb8fbd3-d568-4af1-b264-956c68166980)
+
+# PERFORMANCE OF THE MSTL MODEL
 
 
