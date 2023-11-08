@@ -179,6 +179,155 @@ ax.grid()
 ```
 ![predict](https://github.com/safakulgun/MSTL/assets/108941899/2eb8fbd3-d568-4af1-b264-956c68166980)
 
-# PERFORMANCE OF THE MSTL MODEL
+# MSTL MODELİNİN PERFORMANSI
+
+* Test\Train Set
+
+  ```python
+df_test = df.tail(24)
+df_train = df.drop(df_test.index)
+```
+* MSTL modeli
+
+  ```python
+sf = StatsForecast(
+    models=[mstl, SeasonalNaive(season_length=24)], # add SeasonalNaive model to the list
+    freq='H'
+)
+from time import time
+sf = sf.fit(df=df_train)
+forecasts_test = sf.predict(h=len(df_test))
+init = time()
+sf = sf.fit(df=df_train)
+forecasts_test = sf.predict(h=len(df_test))
+end = time()
+forecasts_test.head()
+```
+
+<img width="577" alt="Screen Shot 2023-11-08 at 22 15 58" src="https://github.com/safakulgun/MSTL/assets/108941899/af58ed07-16b3-4c63-9477-b7b3dcd95ef3">
+
+```python
+time_mstl = (end - init) / 60
+print(f'MSTL Time: {time_mstl:.2f} minutes')
+```
+MSTL Time: 0.22 minutes
+
+```python
+plot_forecasts(df_train, df_test, forecasts_test, models=['MSTL', 'SeasonalNaive'])
+```
+![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/d80dd276-5002-4832-b860-a34b519f04dc)
+
+MSTL Zaman serisinin davranışını takip eden çok doğru tahminler ürettiğini görüyoruz. Şimdi modelin doğruluğunu sayısal olarak inceleyelim.
+
+```python
+def evaluate_performace(y_hist, y_true, y_pred, models):
+    y_true = y_true.merge(y_pred, how='left', on=['unique_id', 'ds'])
+    evaluation = {}
+    for model in models:
+        evaluation[model] = {}
+        for metric in [mase, mae, mape, rmse, smape]:
+            metric_name = metric.__name__
+            if metric_name == 'mase':
+                evaluation[model][metric_name] = metric(y_true['y'].values, 
+                                                 y_true[model].values, 
+                                                 y_hist['y'].values, seasonality=24)
+            else:
+                evaluation[model][metric_name] = metric(y_true['y'].values, y_true[model].values)
+    return pd.DataFrame(evaluation).T
+```
+```python
+evaluate_performace(df_train, df_test, forecasts_test, models=['MSTL', 'SeasonalNaive'])
+```
+<img width="577" alt="Screen Shot 2023-11-08 at 22 43 43" src="https://github.com/safakulgun/MSTL/assets/108941899/9fddf30a-737f-4518-adbc-292e039be0d8">
+
+Verilere bakıldığında MSTL modeli, SeasonalNaive modeline göre daha iyi performans sergiliyor gibi gözükmektedir.
+
+# PROPHET İLE KARŞILAŞTIRMA
+
+Zaman serisi tahmini için en yaygın kullanılan modellerden biridir. Tatil günleri, mevsimsel etkiler ve özel olaylar gibi zaman serisi verilerinin özelliklerini otomatik olarak ele alabilen güçlü ve esnek bir modele sahiptir. Verilerin trendlerini ve mevsimsel desenlerini modellemek için parametrik bir yaklaşım kullanır ve belirli bir veri setine uyarlanabilir. Ayrıca tatil günleri gibi özel olayları da kolayca ekleyebilirsiniz.
+
+```python
+from prophet import Prophet
+
+# create prophet model
+prophet = Prophet(interval_width=0.9)
+init = time()
+prophet.fit(df_train)
+# produce forecasts
+future = prophet.make_future_dataframe(periods=len(df_test), freq='H', include_history=False)
+forecast_prophet = prophet.predict(future)
+end = time()
+# data wrangling
+forecast_prophet = forecast_prophet[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
+forecast_prophet.columns = ['ds', 'Prophet', 'Prophet-lo-90', 'Prophet-hi-90']
+forecast_prophet.insert(0, 'unique_id', 'PJM_Load_hourly')
+forecast_prophet.head()
+```
+<img width="597" alt="Screen Shot 2023-11-08 at 23 09 40" src="https://github.com/safakulgun/MSTL/assets/108941899/f569a4ff-5fc7-461e-a3b3-3c3e5e73a7d5">
+
+```python
+time_prophet = (end - init) / 60
+print(f'Prophet Time: {time_prophet:.2f} minutes')
+```
+Prophet Time: 0.45 minutes
+
+```python
+times = pd.DataFrame({'model': ['MSTL', 'Prophet'], 'time (mins)': [time_mstl, time_prophet]})
+times
+```
+<img width="238" alt="Screen Shot 2023-11-08 at 23 18 00" src="https://github.com/safakulgun/MSTL/assets/108941899/c201e1b0-23b5-43ce-b314-284101c5d733">
+
+```python
+forecasts_test = forecasts_test.merge(forecast_prophet, how='left', on=['unique_id', 'ds'])
+plot_forecasts(df_train, df_test, forecasts_test, models=['MSTL', 'SeasonalNaive', 'Prophet'])
+```
+![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/e8a4992f-81c1-47e6-ab31-7cda5e170ce3)
+
+Prophet'ın zaman serisinde genel davranışları yakaladığını söyleyebiliriz fakat bazı durumlarda gerçek değerin oldukça altında tahminler üretir.
+
+```python
+evaluate_performace(df_train, df_test, forecasts_test, models=['MSTL', 'Prophet', 'SeasonalNaive'])
+```
+<img width="576" alt="Screen Shot 2023-11-08 at 23 32 38" src="https://github.com/safakulgun/MSTL/assets/108941899/56ad5949-1a09-4b85-ae2f-8fd5da4607f2">
+
+# NEURAlPROPHET İLE KARŞILAŞTIRMA
+```python
+from neuralprophet import NeuralProphet
+
+neuralprophet = NeuralProphet(quantiles=[0.05, 0.95])
+init = time()
+neuralprophet.fit(df_train.drop(columns='unique_id'))
+future = neuralprophet.make_future_dataframe(df=df_train.drop(columns='unique_id'), periods=len(df_test))
+forecast_np = neuralprophet.predict(future)
+end = time()
+forecast_np = forecast_np[['ds', 'yhat1', 'yhat1 5.0%', 'yhat1 95.0%']]
+forecast_np.columns = ['ds', 'NeuralProphet', 'NeuralProphet-lo-90', 'NeuralProphet-hi-90']
+forecast_np.insert(0, 'unique_id', 'PJM_Load_hourly')
+forecast_np.head()
+```
+<img width="428" alt="Screen Shot 2023-11-08 at 23 46 08" src="https://github.com/safakulgun/MSTL/assets/108941899/85d62431-d4d0-402d-9202-38a66bf5c462">
 
 
+```python
+time_np = (end - init) / 60
+print(f'Prophet Time: {time_np:.2f} minutes')
+```
+Prophet Time: 4.21 minutes
+
+```python
+times = times.append({'model': 'NeuralProphet', 'time (mins)': time_np}, ignore_index=True)
+times
+```
+<img width="322" alt="Screen Shot 2023-11-08 at 23 48 37" src="https://github.com/safakulgun/MSTL/assets/108941899/693d41e7-4b9b-43a4-a4b7-4518f66b30f4">
+
+```python
+forecasts_test = forecasts_test.merge(forecast_np, how='left', on=['unique_id', 'ds'])
+plot_forecasts(df_train, df_test, forecasts_test, models=['MSTL', 'NeuralProphet', 'Prophet'])
+```
+![Figure_1](https://github.com/safakulgun/MSTL/assets/108941899/a8127624-293a-47ca-8abd-96127d78ec79)
+
+```pythonevaluate_performace(df_train, df_test, forecasts_test, models=['MSTL', 'NeuralProphet', 'Prophet', 'SeasonalNaive'])
+```
+<img width="595" alt="Screen Shot 2023-11-08 at 23 53 45" src="https://github.com/safakulgun/MSTL/assets/108941899/2c7bf2fe-4a54-4994-937b-cf2535d835c7">
+
+Sonuçlara baktığımız zaman  MSTL ve SeasonalNaive modelleri, NeuralProphet ve Prophet modellerine göre daha iyi tahmin performansı sergiliyor.
